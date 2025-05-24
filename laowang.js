@@ -11,9 +11,9 @@ function log(msg) {
   try {
     log('启动 Puppeteer 浏览器...');
     const browser = await puppeteer.launch({
-  headless: 'new', // 或 true
-  args: ['--no-sandbox', '--disable-setuid-sandbox']
-});
+      headless: 'new',
+      args: ['--no-sandbox', '--disable-setuid-sandbox']
+    });
     const page = await browser.newPage();
 
     await page.setUserAgent('Mozilla/5.0');
@@ -24,11 +24,25 @@ function log(msg) {
     await page.type('input[name="username"]', 'abcddde');
     await page.type('input[name="password"]', 'Aa963852741.');
 
-    // 检查是否出现滑块
-    log('等待滑块验证码出现...');
-    const sliderFrame = await page
-      .frames()
-      .find(f => f.url().includes('geetest') || f.name().includes('geetest') || f.name().includes('gt_iframe'));
+    // 等待并点击“点击进行验证”按钮（触发滑块）
+    log('等待“点击进行验证”按钮...');
+    await page.waitForSelector('#tncode', { timeout: 10000 });
+    await page.click('#tncode');
+    log('已点击“点击进行验证”，等待滑块加载...');
+
+    // 等待 Geetest 滑块验证码 iframe 加载（通常需要 iframe + 里面加载完成）
+    const maxWaitTime = 15000;
+    let sliderFrame = null;
+
+    await page.waitForTimeout(2000); // 等一会儿，等待验证码加载
+
+    for (let i = 0; i < 10; i++) {
+      sliderFrame = page.frames().find(f =>
+        f.url().includes('geetest') || f.name().includes('geetest') || f.name().includes('gt_iframe')
+      );
+      if (sliderFrame) break;
+      await page.waitForTimeout(1000);
+    }
 
     if (!sliderFrame) {
       log('❌ 未检测到滑块验证码框架，可能验证方式不同或尚未加载。');
@@ -36,10 +50,7 @@ function log(msg) {
       return;
     }
 
-    // 通常滑块拖动模拟比较复杂，这里使用页面点击登录按钮触发验证码并等待验证通过
     log('等待滑块验证并手动或自动通过...');
-    // 这里可以尝试集成滑块破解库，但不推荐，容易失效
-
     await page.waitForFunction(() => {
       const success = document.querySelector('.gt_info_type_success') || document.querySelector('.geetest_success_radar_tip');
       return success && success.offsetParent !== null;
@@ -49,7 +60,7 @@ function log(msg) {
 
     log('滑块验证通过，提交登录表单...');
     await Promise.all([
-      page.click('button[type="submit"]'), // 或者具体登录按钮选择器
+      page.click('button[type="submit"]'),
       page.waitForNavigation({ waitUntil: 'networkidle2' }),
     ]);
 
