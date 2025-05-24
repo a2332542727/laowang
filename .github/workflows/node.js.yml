@@ -16,11 +16,11 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v2  #安装node.js
         with:
-          node-version: '18'
+          node-version: '14'
           
       - name: Install Dependency       
         run: |
           npm install
           npm install axios
-          npm install puppeteer
+          npm install puppeteer@19
           node ./laowang.js  # 要运行的js脚本，放在根目录下
