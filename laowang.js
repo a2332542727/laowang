@@ -28,8 +28,8 @@ function log(msg) {
 
     const loginUrl = `https://laowang.vip/member.php?mod=logging&action=login&loginsubmit=yes&loginhash=${loginhash}&inajax=1`;
 
-    const username = 'jyln';
-    const passwordPlain = '963852741aA.';
+    const username = 'abcddde';
+    const passwordPlain = 'Aa963852741.';
     const passwordEncoded = `base64://${Buffer.from(passwordPlain + 'A.').toString('base64')}`;
 
     const loginData = new URLSearchParams({
