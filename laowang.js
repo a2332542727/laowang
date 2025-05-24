@@ -10,7 +10,10 @@ function log(msg) {
 (async () => {
   try {
     log('启动 Puppeteer 浏览器...');
-    const browser = await puppeteer.launch({ headless: true });
+    const browser = await puppeteer.launch({
+  headless: 'new', // 或 true
+  args: ['--no-sandbox', '--disable-setuid-sandbox']
+});
     const page = await browser.newPage();
 
     await page.setUserAgent('Mozilla/5.0');
