@@ -1,3 +1,4 @@
+const puppeteer = require('puppeteer');
 const axios = require('axios');
 
 // 时间格式化函数
@@ -8,58 +9,57 @@ function log(msg) {
 
 (async () => {
   try {
-    log('开始执行自动签到任务');
+    log('启动 Puppeteer 浏览器...');
+    const browser = await puppeteer.launch({ headless: true });
+    const page = await browser.newPage();
 
-    // 1. 访问登录页面，提取参数
-    log('请求登录页面...');
-    const loginPage = await axios.get('https://laowang.vip/member.php?mod=logging&action=login', {
-      headers: { 'User-Agent': 'Mozilla/5.0' }
-    });
+    await page.setUserAgent('Mozilla/5.0');
+    log('访问登录页面...');
+    await page.goto('https://laowang.vip/member.php?mod=logging&action=login', { waitUntil: 'networkidle2' });
 
-    const html = loginPage.data;
-    const formhash = html.match(/name="formhash" value="(\w+)"/)?.[1];
-    const referer = html.match(/name="referer" value="([^"]*)"/)?.[1] || '';
-    const loginhash = html.match(/loginhash=(\w+)/)?.[1];
+    // 填入用户名和密码（按实际登录表单结构适配）
+    await page.type('input[name="username"]', 'abcddde');
+    await page.type('input[name="password"]', 'Aa963852741.');
 
-    if (!formhash || !loginhash) {
-      log('❌ 无法提取登录参数（formhash 或 loginhash）');
+    // 检查是否出现滑块
+    log('等待滑块验证码出现...');
+    const sliderFrame = await page
+      .frames()
+      .find(f => f.url().includes('geetest') || f.name().includes('geetest') || f.name().includes('gt_iframe'));
+
+    if (!sliderFrame) {
+      log('❌ 未检测到滑块验证码框架，可能验证方式不同或尚未加载。');
+      await browser.close();
       return;
     }
 
-    const loginUrl = `https://laowang.vip/member.php?mod=logging&action=login&loginsubmit=yes&loginhash=${loginhash}&inajax=1`;
+    // 通常滑块拖动模拟比较复杂，这里使用页面点击登录按钮触发验证码并等待验证通过
+    log('等待滑块验证并手动或自动通过...');
+    // 这里可以尝试集成滑块破解库，但不推荐，容易失效
 
-    const username = 'abcddde';
-    const passwordPlain = 'Aa963852741.';
-    const passwordEncoded = `base64://${Buffer.from(passwordPlain + 'A.').toString('base64')}`;
-
-    const loginData = new URLSearchParams({
-      formhash,
-      referer,
-      username,
-      password: passwordEncoded,
-      questionid: '0',
-      answer: '',
-      cookietime: '2592000'
+    await page.waitForFunction(() => {
+      const success = document.querySelector('.gt_info_type_success') || document.querySelector('.geetest_success_radar_tip');
+      return success && success.offsetParent !== null;
+    }, { timeout: 30000 }).catch(() => {
+      throw new Error('滑块验证未能在 30 秒内通过');
     });
 
-    const cookies = loginPage.headers['set-cookie']?.map(c => c.split(';')[0]).join('; ') || '';
+    log('滑块验证通过，提交登录表单...');
+    await Promise.all([
+      page.click('button[type="submit"]'), // 或者具体登录按钮选择器
+      page.waitForNavigation({ waitUntil: 'networkidle2' }),
+    ]);
 
-    log('提交登录请求...');
-    const loginResp = await axios.post(loginUrl, loginData.toString(), {
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-        'Cookie': cookies,
-        'User-Agent': 'Mozilla/5.0'
-      }
-    });
+    const cookies = await page.cookies();
+    const cookieStr = cookies.map(c => `${c.name}=${c.value}`).join('; ');
 
-    const loginCookies = loginResp.headers['set-cookie']?.map(c => c.split(';')[0]).join('; ');
-    const fullCookie = cookies + (loginCookies ? '; ' + loginCookies : '');
+    await browser.close();
+    log('浏览器关闭，使用 Cookie 执行签到流程...');
 
-    log('登录成功，正在访问签到页面...');
+    log('访问签到页面...');
     const signPage = await axios.get('https://laowang.vip/plugin.php?id=k_misign:sign', {
       headers: {
-        'Cookie': fullCookie,
+        'Cookie': cookieStr,
         'User-Agent': 'Mozilla/5.0'
       }
     });
@@ -74,7 +74,7 @@ function log(msg) {
     log('发送签到请求...');
     const signResp = await axios.get(signUrl, {
       headers: {
-        'Cookie': fullCookie,
+        'Cookie': cookieStr,
         'User-Agent': 'Mozilla/5.0'
       }
     });
